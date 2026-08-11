@@ -1,0 +1,28 @@
+{
+    "app": {
+        "name": "LocalToolbox",
+        "display_name": "本地工具箱",
+        "version": "0.1.0",
+        "description": "完全本地运行的离线文件处理工具箱",
+        "author": "LocalToolbox"
+    },
+    "settings": {
+        "theme": "dark",
+        "language": "zh_CN",
+        "output_dir": "",
+        "keep_original": true,
+        "max_concurrent_tasks": 3,
+        "default_dpi": 300,
+        "default_image_format": "png",
+        "quality": 95
+    },
+    "plugins": {
+        "pdf.enabled": true,
+        "image.enabled": true,
+        "document.enabled": true,
+        "file.enabled": true,
+        "qrcode.enabled": true,
+        "media.enabled": true,
+        "utility.enabled": true
+    }
+}

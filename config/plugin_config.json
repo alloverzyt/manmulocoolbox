@@ -1,0 +1,93 @@
+{
+    "categories": [
+        {
+            "id": "pdf",
+            "name": "PDF处理",
+            "icon": "📄",
+            "order": 1,
+            "plugins": [
+                {"id": "pdf_to_image", "name": "PDF转图片", "enabled": true},
+                {"id": "pdf_merge", "name": "PDF合并", "enabled": true},
+                {"id": "pdf_split", "name": "PDF拆分", "enabled": true},
+                {"id": "pdf_compress", "name": "PDF压缩", "enabled": true},
+                {"id": "pdf_watermark", "name": "PDF水印", "enabled": true},
+                {"id": "pdf_encrypt", "name": "PDF加密解密", "enabled": true},
+                {"id": "pdf_extract", "name": "PDF提取", "enabled": true}
+            ]
+        },
+        {
+            "id": "image",
+            "name": "图片处理",
+            "icon": "🖼️",
+            "order": 2,
+            "plugins": [
+                {"id": "image_convert", "name": "格式转换", "enabled": true},
+                {"id": "image_compress", "name": "批量压缩", "enabled": true},
+                {"id": "image_compress_to_size", "name": "按大小压缩", "enabled": true},
+                {"id": "image_to_pdf", "name": "图片转PDF", "enabled": true},
+                {"id": "image_remove_bg", "name": "去除背景", "enabled": true},
+                {"id": "image_exif", "name": "EXIF管理", "enabled": true},
+                {"id": "image_svg", "name": "SVG转PNG", "enabled": true},
+                {"id": "image_ocr", "name": "图片OCR", "enabled": false}
+            ]
+        },
+        {
+            "id": "document",
+            "name": "文档转换",
+            "icon": "📊",
+            "order": 3,
+            "plugins": [
+                {"id": "ppt_to_image", "name": "PPT转图片", "enabled": true},
+                {"id": "doc_to_pdf", "name": "Word转PDF", "enabled": true},
+                {"id": "pdf_to_doc", "name": "PDF转Word", "enabled": true},
+                {"id": "excel_to_pdf", "name": "Excel转PDF", "enabled": true},
+                {"id": "markdown_convert", "name": "Markdown转换", "enabled": true}
+            ]
+        },
+        {
+            "id": "file",
+            "name": "文件工具",
+            "icon": "📁",
+            "order": 4,
+            "plugins": [
+                {"id": "batch_rename", "name": "批量重命名", "enabled": true},
+                {"id": "duplicate_finder", "name": "重复文件查找", "enabled": true},
+                {"id": "file_hash", "name": "哈希校验", "enabled": true},
+                {"id": "file_organizer", "name": "文件整理", "enabled": true},
+                {"id": "file_type_detect", "name": "格式识别", "enabled": true}
+            ]
+        },
+        {
+            "id": "qrcode",
+            "name": "二维码",
+            "icon": "🔲",
+            "order": 5,
+            "plugins": [
+                {"id": "qrcode_generate", "name": "生成二维码", "enabled": true},
+                {"id": "qrcode_decode", "name": "识别二维码", "enabled": true}
+            ]
+        },
+        {
+            "id": "media",
+            "name": "媒体工具",
+            "icon": "🎬",
+            "order": 6,
+            "plugins": [
+                {"id": "video_to_gif", "name": "视频转GIF", "enabled": true},
+                {"id": "extract_audio", "name": "提取音频", "enabled": true},
+                {"id": "audio_convert", "name": "音频格式转换", "enabled": true}
+            ]
+        },
+        {
+            "id": "utility",
+            "name": "实用工具",
+            "icon": "🔧",
+            "order": 7,
+            "plugins": [
+                {"id": "format_convert", "name": "JSON/CSV/YAML互转", "enabled": true},
+                {"id": "timestamp_convert", "name": "时间戳转换", "enabled": true},
+                {"id": "color_converter", "name": "颜色转换器", "enabled": true}
+            ]
+        }
+    ]
+}

@@ -153,7 +153,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='LocalToolbox',
+    name='满木工具箱',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -5,8 +5,15 @@ from typing import Optional, List
 
 
 def _app_resources_dir() -> str:
-    """应用自带资源目录：开发模式为项目根/resources，打包后为 exe 旁 resources/"""
+    """应用自带资源目录：
+    - 开发模式：项目根/resources
+    - 打包后：优先 _MEIPASS/resources（单文件 EXE 内置的 ffmpeg），
+      其次 exe 旁 resources/（用户用下载功能装到磁盘的版本）
+    """
     if getattr(sys, 'frozen', False):
+        meipass = getattr(sys, '_MEIPASS', '')
+        if meipass and os.path.isdir(os.path.join(meipass, 'resources')):
+            return os.path.join(meipass, 'resources')
         return os.path.join(os.path.dirname(sys.executable), 'resources')
     return os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),

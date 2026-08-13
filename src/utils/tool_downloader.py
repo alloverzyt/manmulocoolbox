@@ -300,13 +300,23 @@ def get_download_info(tool_key: str) -> Optional[Dict]:
 
     install_dir = os.path.join(base_dir, config["install_dir_name"])
     exe_full = os.path.join(install_dir, config["exe_path"])
+    installed = os.path.isfile(exe_full)
+
+    if not installed and getattr(sys, 'frozen', False):
+        # 单文件 EXE 内置的版本（_MEIPASS 内），如打包进 EXE 的 ffmpeg
+        meipass = getattr(sys, '_MEIPASS', '')
+        if meipass:
+            bundled = os.path.join(meipass, "resources", config["install_dir_name"], config["exe_path"])
+            if os.path.isfile(bundled):
+                installed = True
+                exe_full = bundled
 
     return {
         "key": tool_key,
         "name": config["name"],
         "description": config["description"],
         "size_mb": config["size_mb"],
-        "installed": os.path.isfile(exe_full),
+        "installed": installed,
         "install_dir": install_dir,
         "exe_path": exe_full,
         "sources": config["sources"]

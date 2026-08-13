@@ -143,17 +143,18 @@ EXTERNAL_TOOLS = [
 def check_python_dependency(dep: Dict) -> Tuple[bool, str]:
     """
     检查 Python 依赖是否已安装
-    
-    在冻结环境中(PyInstaller打包)，如果模块能被导入就认为已安装
+
+    冻结环境(PyInstaller)下同样做真实导入检测：已内置的模块返回「已内置」；
+    pdf2docx/rembg 等体积较大的可选依赖不在打包范围内，如实显示「未安装」。
     """
-    # 在冻结环境中，跳过检测直接返回已安装（因为所有依赖已内置）
-    if getattr(sys, 'frozen', False):
-        return True, "已内置"
-    
     try:
         importlib.import_module(dep["import_name"])
+        if getattr(sys, 'frozen', False):
+            return True, "已内置"
         return True, "已安装"
     except ImportError:
+        if getattr(sys, 'frozen', False):
+            return False, "未安装（未内置，仅源码版可用）"
         return False, "未安装"
 
 
@@ -182,7 +183,20 @@ def check_all_dependencies() -> Dict:
         tool_info = {**tool, "installed": False, "status": "未检测到"}
 
         if getattr(sys, 'frozen', False):
-            base = os.path.dirname(sys.executable)
+            # 单文件 EXE 内置的版本（_MEIPASS）优先，其次 exe 旁 resources/
+            candidates = []
+            meipass = getattr(sys, '_MEIPASS', '')
+            if meipass:
+                candidates.append(meipass)
+            candidates.append(os.path.dirname(sys.executable))
+            base = None
+            for c in candidates:
+                p = os.path.join(c, tool["project_relative_path"])
+                if os.path.isfile(p):
+                    base = c
+                    break
+            if base is None:
+                base = candidates[-1]
         else:
             base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

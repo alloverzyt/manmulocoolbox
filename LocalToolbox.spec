@@ -31,13 +31,27 @@ for _f in os.listdir('src/utils'):
     if _f.endswith('.py') and not _f.startswith('_'):
         _utils_modules.append('src.utils.' + _f[:-3])
 
+# 资源按文件逐一收集：目录级 ('resources','resources') 不会被 a.datas 展开成
+# 单个文件条目，无法在 Analysis 之后过滤。这里直接跳过打包版用不到的
+# ffplay.exe/ffprobe.exe（各约 140MB，应用只调用 ffmpeg.exe）与源图 满木_raw.png。
+def _collect_resources():
+    entries = []
+    for _r, _dirs, _files in os.walk('resources'):
+        for _f in _files:
+            if _f in ('ffplay.exe', 'ffprobe.exe', '满木_raw.png'):
+                continue
+            _src = os.path.join(_r, _f)
+            entries.append((_src, os.path.dirname(_src)))
+    return entries
+
+
 a = Analysis(
     ['run.py'],
     pathex=['src'],
     binaries=[],
     datas=[
         ('config/plugin_config.json', 'config'),
-        ('resources', 'resources'),
+        *_collect_resources(),
         ('CHANGELOG.md', '.'),
         # 插件目录整体复制进解压目录：_load_all 需要 os.listdir 遍历真实目录
         ('src/plugins', 'src/plugins'),
@@ -58,14 +72,8 @@ a = Analysis(
         'markdown',
         'yaml',
         'pyzbar',
-        'pdf2docx',
         'reportlab',
         'img2pdf',
-        'numpy',
-        'pandas',
-        'openpyxl',
-        'rembg',
-        'onnxruntime',
     ] + _plugin_modules + _utils_modules,
     hookspath=[],
     hooksconfig={},
@@ -87,6 +95,11 @@ a = Analysis(
         'scipy', 'sympy',
         # 机器学习
         'sklearn', 'tensorflow', 'torch', 'torchvision', 'xgboost', 'lightgbm',
+        # 可选依赖不打包（体积控制）：pdf2docx→numpy+opencv 会增大 EXE 160MB 以上。
+        # 这些在源码运行 / 依赖管理页可 pip 安装，打包版里对应工具会提示"未安装"。
+        'pdf2docx', 'numpy', 'pandas', 'openpyxl',
+        'cv2', 'opencv', 'opencv_python', 'opencv-python-headless',
+        'rembg', 'onnxruntime', 'onnxruntime-gpu',
         # 数据库
         'pymysql', 'psycopg2', 'sqlalchemy',
         # 消息队列

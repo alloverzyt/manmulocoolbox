@@ -17,6 +17,12 @@
 - 选中需要依赖但未安装的工具时：显示警示提示条「此功能需要先安装依赖，请到依赖管理页下载安装」，隐藏拖放区、清空已拖文件、禁用运行按钮、拒绝继续拖入——不会再出现"能拖文件但一运行就报错"的困惑
 - 后台 TaskWorker 同样校验环境与输入（双保险，直接调用 API 也拦得住）
 
+### 打包体积优化（301MB → 131MB）
+- 排除 pdf2docx/numpy/pandas/openpyxl/cv2/rembg/onnxruntime 打包（spec excludes）：pdf2docx→numpy+opencv 曾让 EXE 暴增 160MB。「PDF转Word」「AI去背景」在打包版显示「未安装」提示（开发版/依赖管理页仍可 pip 安装），依赖页如实显示未内置
+- 资源瘦身：resources 改为按文件逐一收集，跳过 ffplay.exe/ffprobe.exe（各约 140MB，应用只调用 ffmpeg.exe）与源图满木_raw.png
+- 内置 FFmpeg 真正可用：`_app_resources_dir()`/`get_download_info`/依赖页外部工具检测均支持 `_MEIPASS` 内置路径——单文件 EXE 双击即可离线使用媒体工具，不再依赖 exe 旁 resources/ 或系统 PATH
+- 冻结模式依赖检测改为真实导入：已内置模块显示「已内置」，未内置的 pdf2docx/rembg 如实显示「未安装（未内置，仅源码版可用）」
+
 ## v1.3.6（2026-08-12）
 
 ### 全功能实操验证

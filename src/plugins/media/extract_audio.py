@@ -62,6 +62,12 @@ class ExtractAudioPlugin(BasePlugin):
             }
         }
 
+    def check_environment(self) -> str:
+        from ...utils.ffmpeg_helper import find_ffmpeg
+        if not find_ffmpeg():
+            return "需要 FFmpeg 才能提取音频。请到「依赖管理」页下载安装。"
+        return None
+
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         from ...utils.ffmpeg_helper import find_ffmpeg, extract_audio
 
@@ -83,7 +89,8 @@ class ExtractAudioPlugin(BasePlugin):
         output_path = os.path.join(output_dir, f"{base_name}.{format}")
 
         try:
-            result = extract_audio(file_path, output_path, format=format)
+            result = extract_audio(file_path, output_path, format=format,
+                                   quality=options.get("quality", 2))
         except Exception as e:
             return PluginResult(success=False, error=str(e))
 

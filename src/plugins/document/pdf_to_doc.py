@@ -67,6 +67,14 @@ class PdfToDocPlugin(BasePlugin):
             }
         }
 
+    def check_environment(self) -> str:
+        try:
+            import pdf2docx  # noqa: F401
+            return None
+        except ImportError:
+            return "需要 pdf2docx 库才能转换。请到「依赖管理」页安装。"
+        return None
+
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         try:
             from pdf2docx import Converter

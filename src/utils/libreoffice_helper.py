@@ -7,6 +7,16 @@ from typing import Optional, List
 def find_libreoffice() -> Optional[str]:
     search_paths = []
 
+    # 应用自带（工具下载器安装到 <根>/resources/libreoffice）
+    if getattr(sys, 'frozen', False):
+        app_res = os.path.join(os.path.dirname(sys.executable), 'resources')
+    else:
+        app_res = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            'resources'
+        )
+    search_paths.append(os.path.join(app_res, 'libreoffice', 'program', 'soffice.exe'))
+
     if getattr(sys, 'frozen', False):
         base = os.path.dirname(sys.executable)
         search_paths.append(os.path.join(base, 'libreoffice', 'program', 'soffice.exe'))

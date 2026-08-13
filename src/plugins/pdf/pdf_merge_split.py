@@ -39,6 +39,11 @@ class PdfMergePlugin(BasePlugin):
         return ["pdf"]
 
     @property
+    def process_files_together(self) -> bool:
+        # 合并需要一次性拿到所有 PDF，逐文件调用会永远失败
+        return True
+
+    @property
     def options_schema(self) -> Dict[str, Any]:
         return {
             "output_name": {

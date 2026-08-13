@@ -53,6 +53,16 @@ class ImageRemoveBgPlugin(BasePlugin):
             }
         }
 
+    def check_environment(self) -> str:
+        try:
+            import rembg  # noqa: F401
+            return None
+        except ImportError:
+            return "需要 rembg 库（AI去除背景）。请到「依赖管理」页安装。"
+        except Exception:
+            return "rembg 可用性检查失败。请到「依赖管理」页安装。"
+        return None
+
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         try:
             from rembg import remove

@@ -123,6 +123,8 @@ class BatchRenamePlugin(BasePlugin):
                     os.path.dirname(file_path) if not output_dir else output_dir,
                     new_name
                 )
+                # 目标已存在时自动追加序号避让，避免整批重命名因单个冲突失败
+                new_path = self._unique_path(new_path)
 
                 if output_dir:
                     ensure_dir(output_dir)
@@ -186,3 +188,14 @@ class BatchRenamePlugin(BasePlugin):
             return f"{date_str}_{num_str}{ext}"
 
         return f"{base}_renamed{ext}"
+
+    @staticmethod
+    def _unique_path(path: str) -> str:
+        """目标路径已存在时自动追加序号（file_001 → file_001_1），避免重命名冲突"""
+        if not os.path.exists(path):
+            return path
+        base, ext = os.path.splitext(path)
+        i = 1
+        while os.path.exists(f"{base}_{i}{ext}"):
+            i += 1
+        return f"{base}_{i}{ext}"

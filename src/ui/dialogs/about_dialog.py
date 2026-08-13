@@ -22,7 +22,7 @@ from ..widgets.icon_drawer import get_icon_pixmap
 
 # ===== 应用信息常量 =====
 APP_NAME = "满木工具箱"
-APP_VERSION = "1.3.5"
+APP_VERSION = "1.3.7"
 APP_SLOGAN = "完全本地运行的离线文件处理工具箱"
 BLOG_NAME = "博客园 · alloverzyt"
 BLOG_URL = "https://www.cnblogs.com/alloverzyt"

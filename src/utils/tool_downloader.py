@@ -4,6 +4,7 @@ import subprocess
 import hashlib
 import tempfile
 import shutil
+import time
 from typing import Dict, Optional, Callable
 from PySide6.QtCore import QThread, Signal
 
@@ -15,9 +16,22 @@ DOWNLOAD_SOURCES = {
         "size_mb": 350,
         "sources": [
             {
-                "name": "官方镜像",
-                "url": "https://download.libreoffice.org/",
-                "format": "archive"
+                # 腾讯云镜像：国内速度快、带宽足，URL 自动解析最新版本目录
+                "name": "腾讯云镜像(自动选版本)",
+                "url": "https://mirrors.cloud.tencent.com/libreoffice/libreoffice/stable/",
+                "format": "msi"
+            },
+            {
+                # 清华 TUNA 镜像：备选国内源
+                # 注意镜像路径是 libreoffice/libreoffice/stable（TUNA 站点子路径嵌套）
+                "name": "清华大学镜像(自动选版本)",
+                "url": "https://mirrors.tuna.tsinghua.edu.cn/libreoffice/libreoffice/stable/",
+                "format": "msi"
+            },
+            {
+                "name": "官方镜像(自动选版本)",
+                "url": "https://download.documentfoundation.org/libreoffice/stable/",
+                "format": "msi"
             }
         ],
         "portable_archive_pattern": "LibreOffice*_Portable*.exe",
@@ -31,11 +45,19 @@ DOWNLOAD_SOURCES = {
         "size_mb": 80,
         "sources": [
             {
+                # gyan.dev 官方构建：直连可用但国内速度一般，作为保底源
                 "name": "gyan.dev 构建",
                 "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
                 "format": "zip"
             },
             {
+                # gh-proxy 代理 GitHub release：国内访问 GitHub 被墙/限速时使用
+                "name": "BtbN 构建(gh-proxy镜像)",
+                "url": "https://gh-proxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+                "format": "zip"
+            },
+            {
+                # 直连 GitHub：仅当国内网络可直接访问 GitHub 时有效
                 "name": "BtbN 构建",
                 "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
                 "format": "zip"
@@ -115,7 +137,15 @@ class ToolDownloader(QThread):
         import tarfile
 
         url = source["url"]
-        self.progress.emit(10, f"正在下载 {url.split('/')[-1]}")
+        fmt = source.get("format", "zip")
+
+        # 官方镜像 / 清华 TUNA 镜像：先解析最新版本目录，得到真实 MSI 下载地址
+        # （已是完整 .msi 地址的源直接跳过解析，避免二次请求目录页）
+        if fmt in ("msi", "msi_tuna") and not url.lower().endswith(".msi"):
+            url = self._resolve_tuna_libreoffice_url(url)
+            if not url:
+                raise RuntimeError("无法解析 LibreOffice 最新版本")
+            self.progress.emit(10, f"正在下载 {url.split('/')[-1]}")
 
         try:
             req = urllib.request.Request(url, headers={
@@ -127,7 +157,9 @@ class ToolDownloader(QThread):
             with urllib.request.urlopen(req, timeout=30) as response:
                 total_size = int(response.headers.get("Content-Length", 0))
                 downloaded = 0
-                chunk_size = 8192
+                chunk_size = 65536
+                start_time = time.time()
+                last_emit = 0.0
 
                 with open(temp_file, "wb") as f:
                     while True:
@@ -140,16 +172,37 @@ class ToolDownloader(QThread):
                             break
                         f.write(chunk)
                         downloaded += len(chunk)
+                        now = time.time()
+                        speed = downloaded / 1024 / 1024 / max(now - start_time, 0.001)
+                        # 节流：至少每 0.2 秒才刷新一次进度，避免高频信号卡 UI
+                        if now - last_emit < 0.2:
+                            continue
+                        last_emit = now
                         if total_size > 0:
                             pct = 10 + int((downloaded / total_size) * 60)
-                            self.progress.emit(pct, f"下载中... {downloaded // 1024 // 1024}MB")
+                            self.progress.emit(
+                                pct,
+                                f"下载中 {pct}% · {downloaded // 1024 // 1024}MB/{total_size // 1024 // 1024}MB · {speed:.1f}MB/s"
+                            )
+                        else:
+                            # 服务器未返回总大小（Content-Length 缺失）：
+                            # 不能停在 10%，按已下载大小估算推进，让用户看到在动
+                            pct = min(70, 10 + int(downloaded / 1024 / 1024 / 5))
+                            self.progress.emit(
+                                pct,
+                                f"下载中 {pct}% · {downloaded // 1024 // 1024}MB · {speed:.1f}MB/s"
+                            )
 
             self.progress.emit(75, "下载完成，正在解压...")
 
-            if source["format"] == "zip":
+            if fmt == "zip":
                 self._extract_zip(temp_file, target_dir)
-            elif source["format"] == "archive":
+            elif fmt == "archive":
                 self._extract_portable_exe(temp_file, target_dir, config)
+            elif fmt in ("msi", "msi_tuna"):
+                # 三种 LibreOffice 源的 format 均为 "msi"；此前只有 "msi_tuna" 分支，
+                # 导致下载完的 MSI 无人解包、直接删除后又被判失败
+                self._extract_msi(temp_file, target_dir)
 
             os.remove(temp_file)
             self.progress.emit(95, "验证安装...")
@@ -170,6 +223,29 @@ class ToolDownloader(QThread):
                 except:
                     pass
             return False
+
+    def _resolve_tuna_libreoffice_url(self, base_url: str) -> Optional[str]:
+        """解析镜像中 LibreOffice 最新稳定版 MSI 下载地址（官方镜像与 TUNA 结构一致）"""
+        import re
+        import urllib.request
+        req = urllib.request.Request(base_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            html = resp.read().decode("utf-8", "ignore")
+        versions = re.findall(r'href="(\d+\.\d+\.\d+)/"', html)
+        if not versions:
+            return None
+        latest = max(versions, key=lambda v: tuple(int(x) for x in v.split(".")))
+        return f"{base_url}{latest}/win/x86_64/LibreOffice_{latest}_Win_x86-64.msi"
+
+    def _extract_msi(self, msi_path: str, target_dir: str):
+        """用 msiexec 管理安装(administrative install)解包 MSI 到目标目录，得到可运行的文件树"""
+        import subprocess
+        result = subprocess.run(
+            ["msiexec", "/a", msi_path, "/qn", f"TARGETDIR={target_dir}"],
+            capture_output=True, text=True, timeout=600
+        )
+        if result.returncode not in (0, 3010):  # 3010 = 成功但需重启，忽略
+            raise RuntimeError(f"msiexec 解包失败: {result.returncode} {result.stderr[:200]}")
 
     def _extract_zip(self, zip_path: str, target_dir: str):
         import zipfile

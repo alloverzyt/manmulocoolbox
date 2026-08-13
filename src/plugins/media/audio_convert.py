@@ -67,6 +67,12 @@ class AudioConvertPlugin(BasePlugin):
             }
         }
 
+    def check_environment(self) -> str:
+        from ...utils.ffmpeg_helper import find_ffmpeg
+        if not find_ffmpeg():
+            return "需要 FFmpeg 才能转换音频。请到「依赖管理」页下载安装。"
+        return None
+
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         from ...utils.ffmpeg_helper import find_ffmpeg, convert_audio
 
@@ -87,8 +93,12 @@ class AudioConvertPlugin(BasePlugin):
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         output_path = os.path.join(output_dir, f"{base_name}.{target_fmt}")
 
+        # 目标格式与源文件相同且路径重合时追加后缀，防止 ffmpeg 边读边写损坏源文件
+        if os.path.abspath(output_path).lower() == os.path.abspath(file_path).lower():
+            output_path = os.path.join(output_dir, f"{base_name}_converted.{target_fmt}")
+
         try:
-            result = convert_audio(file_path, output_path)
+            result = convert_audio(file_path, output_path, bitrate=options.get("bitrate"))
         except Exception as e:
             return PluginResult(success=False, error=str(e))
 

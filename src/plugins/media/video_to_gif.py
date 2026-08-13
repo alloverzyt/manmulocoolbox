@@ -67,6 +67,12 @@ class VideoToGifPlugin(BasePlugin):
             }
         }
 
+    def check_environment(self) -> str:
+        from ...utils.ffmpeg_helper import find_ffmpeg
+        if not find_ffmpeg():
+            return "需要 FFmpeg 才能转换视频。请到「依赖管理」页下载安装。"
+        return None
+
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         from ...utils.ffmpeg_helper import find_ffmpeg, video_to_gif
 
@@ -81,6 +87,8 @@ class VideoToGifPlugin(BasePlugin):
         options = input_data.options
         fps = options.get("fps", 10)
         width = options.get("width", 480)
+        start_time = options.get("start_time", "0")
+        duration = options.get("duration", "10")
 
         output_dir = get_output_dir(file_path, options.get("output_dir", ""))
         ensure_dir(output_dir)
@@ -89,7 +97,8 @@ class VideoToGifPlugin(BasePlugin):
         output_path = os.path.join(output_dir, f"{base_name}.gif")
 
         try:
-            result = video_to_gif(file_path, output_path, fps=fps, width=width)
+            result = video_to_gif(file_path, output_path, fps=fps, width=width,
+                                  start_time=start_time, duration=duration)
         except Exception as e:
             return PluginResult(success=False, error=str(e))
 

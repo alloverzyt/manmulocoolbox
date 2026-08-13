@@ -59,6 +59,15 @@ class FileDropArea(QWidget):
         sub_font = QFont("Microsoft YaHei UI", 10)
         self._subtitle.setFont(sub_font)
 
+        # 成功提示条：拖入文件后显示，明确告知"已添加"
+        self._added_label = QLabel("")
+        self._added_label.setAlignment(Qt.AlignCenter)
+        added_font = QFont("Microsoft YaHei UI", 11)
+        added_font.setBold(True)
+        self._added_label.setFont(added_font)
+        self._added_label.setMinimumHeight(24)
+        self._added_label.hide()
+
         # 按钮行
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
@@ -83,9 +92,30 @@ class FileDropArea(QWidget):
         self._layout.addLayout(icon_row)
         self._layout.addWidget(self._title)
         self._layout.addWidget(self._subtitle)
+        self._layout.addWidget(self._added_label)
         self._layout.addSpacing(6)
         self._layout.addLayout(btn_layout)
         self._layout.addStretch()
+
+    def _success_color(self) -> str:
+        """成功提示色：深色主题亮绿，浅色主题深绿"""
+        is_dark = self.palette().window().color().lightness() < 128
+        return "#A5D6A7" if is_dark else "#4CAF50"
+
+    def set_added_count(self, count: int):
+        """设置已添加文件数：>0 时显示成功反馈，明确告知文件已就绪"""
+        if count > 0:
+            self._added_label.setText(f"✓ 已添加 {count} 个文件，可继续拖入或点击按钮追加")
+            self._added_label.setStyleSheet(
+                f"color: {self._success_color()}; background: transparent; font-size: 12px;"
+            )
+            self._added_label.show()
+            self._title.setText("文件已就绪")
+            self._subtitle.setText("可继续拖入文件，或点击下方按钮追加")
+        else:
+            self._added_label.hide()
+            self._title.setText("拖拽文件到此处")
+            self._subtitle.setText("或点击下方按钮选择")
 
     def _on_select_clicked(self):
         """选择文件"""

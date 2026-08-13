@@ -48,6 +48,12 @@ class DocToPdfPlugin(BasePlugin):
             return "未检测到 LibreOffice。请先安装 LibreOffice。"
         return None
 
+    def check_environment(self) -> str:
+        from ...utils.libreoffice_helper import find_libreoffice
+        if not find_libreoffice():
+            return "需要 LibreOffice 才能转换。请到「依赖管理」页下载安装。"
+        return None
+
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         file_path = input_data.file_paths[0]
         options = input_data.options
@@ -113,6 +119,12 @@ class ExcelToPdfPlugin(BasePlugin):
         from ...utils.libreoffice_helper import find_libreoffice
         if not find_libreoffice():
             return "未检测到 LibreOffice。请先安装 LibreOffice。"
+        return None
+
+    def check_environment(self) -> str:
+        from ...utils.libreoffice_helper import find_libreoffice
+        if not find_libreoffice():
+            return "需要 LibreOffice 才能转换。请到「依赖管理」页下载安装。"
         return None
 
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:

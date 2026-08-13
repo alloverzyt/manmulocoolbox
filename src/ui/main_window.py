@@ -190,10 +190,12 @@ class DependencyPage(QWidget):
         layout.addWidget(self._tabs, 1)
 
         # 底部：进度 + 状态
+        # 进度条高度 16px，隐藏内部百分比文本（8px 高度会导致文字上下被遮挡），
+        # 进度与速度信息显示在下方独立状态标签中，避免与整体 UI 风格冲突
         self._progress = QProgressBar()
         self._progress.setVisible(False)
-        self._progress.setMinimumHeight(8)
-        self._progress.setMaximumHeight(8)
+        self._progress.setFixedHeight(16)
+        self._progress.setTextVisible(False)
         layout.addWidget(self._progress)
 
         self._status_label = QLabel("")

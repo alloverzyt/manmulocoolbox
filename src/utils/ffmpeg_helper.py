@@ -4,12 +4,28 @@ import sys
 from typing import Optional, List
 
 
+def _app_resources_dir() -> str:
+    """应用自带资源目录：开发模式为项目根/resources，打包后为 exe 旁 resources/"""
+    if getattr(sys, 'frozen', False):
+        return os.path.join(os.path.dirname(sys.executable), 'resources')
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'resources'
+    )
+
+
 def find_ffmpeg() -> Optional[str]:
-    search_paths = ['ffmpeg']
+    # 优先应用自带 FFmpeg（工具下载器从官方源安装的完整版），
+    # 避免命中系统 PATH 中残缺或被其他软件替换的 ffmpeg.exe
+    search_paths = [
+        os.path.join(_app_resources_dir(), 'ffmpeg', 'bin', 'ffmpeg.exe'),
+    ]
 
     if getattr(sys, 'frozen', False):
         base = os.path.dirname(sys.executable)
-        search_paths.insert(0, os.path.join(base, 'ffmpeg.exe'))
+        search_paths.append(os.path.join(base, 'ffmpeg.exe'))
+
+    search_paths.append('ffmpeg')  # PATH 兜底
 
     for path in search_paths:
         try:
@@ -25,13 +41,27 @@ def find_ffmpeg() -> Optional[str]:
 
 
 def video_to_gif(input_path: str, output_path: str, fps: int = 10,
-                 width: int = 480, ffmpeg_path: str = None) -> Optional[str]:
+                 width: int = 480, start_time: str = "0", duration: str = "10",
+                 ffmpeg_path: str = None) -> Optional[str]:
     ffmpeg = ffmpeg_path or find_ffmpeg()
     if not ffmpeg:
         return None
 
-    cmd = [
-        ffmpeg, '-y', '-i', input_path,
+    cmd = [ffmpeg, '-y', '-i', input_path]
+
+    # 起始时间 / 持续时长（用户可能填非法数字，解析失败则忽略）
+    try:
+        if start_time and float(start_time) > 0:
+            cmd += ['-ss', str(start_time)]
+    except (TypeError, ValueError):
+        pass
+    try:
+        if duration and float(duration) > 0:
+            cmd += ['-t', str(duration)]
+    except (TypeError, ValueError):
+        pass
+
+    cmd += [
         '-vf', f'fps={fps},scale={width}:-1:flags=lanczos',
         '-preset', 'slow',
         output_path
@@ -40,28 +70,51 @@ def video_to_gif(input_path: str, output_path: str, fps: int = 10,
     return _run_ffmpeg(cmd, output_path, "GIF生成")
 
 
+def _audio_codec(fmt: str) -> str:
+    """把输出格式映射为 ffmpeg 编码器名（容器格式名 ≠ 编码器名，如 wav→pcm_s16le、ogg→libvorbis）"""
+    return {
+        'mp3': 'libmp3lame',
+        'wav': 'pcm_s16le',
+        'aac': 'aac',
+        'flac': 'flac',
+        'ogg': 'libvorbis',
+        'm4a': 'aac',
+    }.get(fmt, fmt)
+
+
 def extract_audio(input_path: str, output_path: str, format: str = 'mp3',
+                  quality: int = 2, ffmpeg_path: str = None) -> Optional[str]:
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not ffmpeg:
+        return None
+
+    codec = _audio_codec(format)
+    cmd = [
+        ffmpeg, '-y', '-i', input_path,
+        '-vn', '-acodec', codec,
+    ]
+    # 仅有损编码（mp3/aac/ogg）支持 -q:a VBR 质量；WAV/FLAC 无损编码不支持
+    if codec in ('libmp3lame', 'aac', 'libvorbis'):
+        cmd += ['-q:a', str(quality)]
+    cmd.append(output_path)
+
+    return _run_ffmpeg(cmd, output_path, "音频提取")
+
+
+def convert_audio(input_path: str, output_path: str, bitrate: str = None,
                   ffmpeg_path: str = None) -> Optional[str]:
     ffmpeg = ffmpeg_path or find_ffmpeg()
     if not ffmpeg:
         return None
 
-    cmd = [
-        ffmpeg, '-y', '-i', input_path,
-        '-vn', '-acodec', 'libmp3lame' if format == 'mp3' else format,
-        '-q:a', '2',
-        output_path
-    ]
+    cmd = [ffmpeg, '-y', '-i', input_path]
 
-    return _run_ffmpeg(cmd, output_path, "音频提取")
+    # 仅对有损格式应用比特率；WAV/FLAC 等无损格式不支持 -b:a
+    out_ext = os.path.splitext(output_path)[1].lower().lstrip('.')
+    if bitrate and out_ext in ('mp3', 'aac', 'ogg', 'm4a', 'wma'):
+        cmd += ['-b:a', bitrate]
 
-
-def convert_audio(input_path: str, output_path: str, ffmpeg_path: str = None) -> Optional[str]:
-    ffmpeg = ffmpeg_path or find_ffmpeg()
-    if not ffmpeg:
-        return None
-
-    cmd = [ffmpeg, '-y', '-i', input_path, output_path]
+    cmd.append(output_path)
 
     return _run_ffmpeg(cmd, output_path, "音频转换")
 

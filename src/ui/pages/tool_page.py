@@ -85,6 +85,7 @@ class ToolPage(QWidget):
         self._files: List[str] = []
         self._worker: Optional[TaskWorker] = None
         self._event_bus = EventBus()
+        self._env_blocked: Optional[str] = None  # 当前插件缺失依赖提示（None=就绪）
         self._card_widgets = []
         self._arrow_labels = []
         self._panel_anim: Optional[QVariantAnimation] = None
@@ -198,6 +199,15 @@ class ToolPage(QWidget):
         self._no_file_label.setObjectName("hintLabel")
         self._no_file_label.setVisible(False)
         panel_layout.addWidget(self._no_file_label)
+
+        # 依赖缺失提示条（需要外部依赖但未安装时显示，阻止拖文件）
+        self._env_hint_label = QLabel("")
+        self._env_hint_label.setAlignment(Qt.AlignCenter)
+        self._env_hint_label.setWordWrap(True)
+        self._env_hint_label.setMinimumHeight(40)
+        self._env_hint_label.setObjectName("envHintLabel")
+        self._env_hint_label.setVisible(False)
+        panel_layout.addWidget(self._env_hint_label)
 
         # 可滚动内容区（面板限高后内部仍可滚动查看）
         self._panel_scroll = QScrollArea()
@@ -545,11 +555,23 @@ class ToolPage(QWidget):
         for a in self._arrow_labels:
             self._set_arrow_idle_style(a)
 
-        # 高亮当前
+        # 高亮当前（拖放匹配等路径不传 card，按插件索引自动定位卡片）
+        if card is None:
+            try:
+                idx = self._plugins.index(plugin)
+                card = self._card_widgets[idx]
+            except (ValueError, IndexError):
+                card = None
         if card:
             card.setProperty("selected", "true")
             card.style().unpolish(card)
             card.style().polish(card)
+        if arrow is None and card is not None:
+            try:
+                idx = self._card_widgets.index(card)
+                arrow = self._arrow_labels[idx]
+            except ValueError:
+                arrow = None
         if arrow:
             accent_color = self._get_accent_color()
             arrow.setStyleSheet(f"color: {accent_color}; background: transparent; font-size: 22px; font-weight: bold;")
@@ -560,18 +582,38 @@ class ToolPage(QWidget):
         self._options_panel.load_plugin_options(plugin)
         self._options_panel.set_files(self._files)
 
-        # 根据插件是否需要文件，切换拖放区 / 无需文件提示
-        need_file = plugin.requires_files
-        self._drop_area.setVisible(need_file)
-        self._no_file_label.setVisible(not need_file)
-        self._options_panel.set_need_files(need_file)
+        # 依赖检查：需要外部依赖（LibreOffice/FFmpeg/rembg 等）但未安装时，
+        # 提示先安装依赖，并阻止拖文件 / 运行，避免用户以为文件没生效
+        env_hint = plugin.check_environment()
+        self._env_blocked = env_hint
+        if env_hint:
+            self._env_hint_label.setText(f"⚠ 此功能需要先安装依赖：{env_hint}")
+            self._env_hint_label.setVisible(True)
+            self._drop_area.setVisible(False)
+            self._no_file_label.setVisible(False)
+            self._files.clear()
+            self._options_panel.set_files([])
+            self._drop_area.set_added_count(0)
+            self._progress_panel.setVisible(False)
+            self._options_panel.set_need_files(False)
+        else:
+            self._env_hint_label.setVisible(False)
+            # 根据插件是否需要文件，切换拖放区 / 无需文件提示
+            need_file = plugin.requires_files
+            self._drop_area.setVisible(need_file)
+            self._no_file_label.setVisible(not need_file)
+            self._options_panel.set_need_files(need_file)
 
         self._expand_panel()
         self._update_run_btn()
 
     def _update_run_btn(self):
-        """根据插件是否需要文件、文件是否就绪，更新运行按钮状态"""
+        """根据插件是否需要文件、文件是否就绪、依赖是否就绪，更新运行按钮状态"""
         if not self._current_plugin:
+            self._run_btn.setDisabled(True)
+            return
+        # 依赖缺失时禁止运行（提示条已展示，用户需先去「依赖管理」安装）
+        if getattr(self, "_env_blocked", None):
             self._run_btn.setDisabled(True)
             return
         need_file = self._current_plugin.requires_files
@@ -639,14 +681,36 @@ class ToolPage(QWidget):
 
     def _on_files_dropped(self, files: List[str]):
         """文件拖放"""
+        # 依赖缺失时忽略拖入（提示条已展示，需先去「依赖管理」安装）
+        if self._env_blocked:
+            self.status_changed.emit(self._env_blocked)
+            return
         self._files.extend(files)
         self._files = list(dict.fromkeys(self._files))
         self._options_panel.set_files(self._files)
+        self._drop_area.set_added_count(len(self._files))
         self._update_run_btn()
+        # 面板滚动到底部，确保参数配置区可见（窗口矮时拖放区可能独占视野，
+        # 用户会误以为文件没拖进去）
+        QTimer.singleShot(0, self._scroll_panel_to_options)
+
+    def _scroll_panel_to_options(self):
+        """滚动面板内容区到参数配置区（文件列表下方）"""
+        sb = self._panel_scroll.verticalScrollBar()
+        sb.setValue(sb.maximum())
+
+    def _scroll_panel_to_top(self):
+        """滚动面板内容区回到顶部（拖放区，准备拖入下一个文件）"""
+        sb = self._panel_scroll.verticalScrollBar()
+        sb.setValue(0)
 
     def _on_run_clicked(self):
         """运行"""
         if not self._current_plugin:
+            return
+        # 依赖缺失时禁止运行（按钮已禁用，此处为防御）
+        if self._env_blocked:
+            self.status_changed.emit(self._env_blocked)
             return
         if self._current_plugin.requires_files and not self._files:
             return
@@ -662,7 +726,8 @@ class ToolPage(QWidget):
         self._worker.start()
 
     def _on_worker_completed(self, success: bool, message: str, error: str, output_paths: list):
-        """处理完成 - 记录输出目录、显示结果，几秒后自动回到初始界面"""
+        """处理完成 - 记录输出目录、显示结果
+        成功：几秒后自动回到初始界面；失败：保留现场（错误信息+文件+面板），可重试"""
         # 计算输出目录（优先取第一个输出文件所在目录）
         out_dir = ""
         if output_paths and output_paths[0]:
@@ -672,18 +737,35 @@ class ToolPage(QWidget):
             out_dir = options.get("output_dir", "") or ""
         self._progress_panel.set_output_dir(out_dir)
         self._progress_panel.finish_all(success, message, error)
-        self._run_btn.setEnabled(False)  # 先禁用，重置后再根据文件启用
-        self._worker = None
 
-        # 延迟几秒后自动收尾，回到初始界面
-        delay_ms = 3000 if success else 6000  # 失败多停留一点时间
-        QTimer.singleShot(delay_ms, self._reset_to_initial_state)
+        # 安全释放 worker：completed 由 worker 线程在 run() 末尾发出，
+        # 此时线程可能还没真正退出。直接把 self._worker 置 None 销毁 QThread
+        # 会触发 "QThread destroyed while running" 崩溃（竞态、随机复现）。
+        # 先 wait() 确保线程真正结束再 deleteLater（completed 发出时 run() 已到末尾，
+        # wait 通常立即返回，不会卡界面）。
+        worker = self._worker
+        self._worker = None
+        if worker is not None:
+            worker.wait(3000)
+            worker.deleteLater()
+
+        if success:
+            # 成功后自动收尾，回到初始界面
+            self._run_btn.setEnabled(False)  # 先禁用，重置后再根据文件启用
+            QTimer.singleShot(3000, self._reset_to_initial_state)
+        else:
+            # 失败时保留现场：不清文件、不收面板，错误信息留在进度面板，
+            # 用户可点「重试失败」或重新添加文件，避免"界面莫名消失、文件加不进去"
+            self.status_changed.emit(f"处理失败：{error or message}")
+            self._update_run_btn()  # 文件还在，允许再次点击运行重试
 
     def _reset_to_initial_state(self):
-        """重置为初始状态：清空文件、收拢面板、取消选中、还原标题"""
-        # 1. 清空已选文件
+        """任务完成后的收尾：清空文件与进度，但保持当前工具选中与面板展开，
+        方便连续处理下一个文件（用户不用重新点卡片）"""
+        # 1. 清空已选文件，拖放区回到待添加状态
         self._files.clear()
         self._options_panel.set_files([])
+        self._drop_area.set_added_count(0)
 
         # 2. 隐藏进度面板并重置
         self._progress_panel.setVisible(False)
@@ -691,25 +773,10 @@ class ToolPage(QWidget):
         self._progress_panel._status_label.setText("就绪")
         self._progress_panel._progress_bar.setValue(0)
 
-        # 3. 取消所有工具卡片的选中状态，还原箭头
-        for c in self._card_widgets:
-            c.setProperty("selected", "false")
-            c.style().unpolish(c)
-            c.style().polish(c)
-        for a in self._arrow_labels:
-            self._set_arrow_idle_style(a)
-
-        # 4. 还原标题和当前插件
-        self._current_plugin = None
-        self._title_label.setText("选择一个工具开始")
-        self._panel_title.setText("操作设置")
-
-        # 5. 隐藏参数面板并禁用运行按钮
-        self._options_panel.setVisible(False)
-        self._run_btn.setDisabled(True)
-
-        # 6. 收拢操作面板，卡片区占满
-        self._collapse_panel()
+        # 3. 保持当前工具选中、面板展开；运行按钮按新文件状态更新（文件已清空）
+        self._update_run_btn()
+        # 面板滚动回顶部，让用户看到拖放区，直接拖入下一个文件即可继续
+        QTimer.singleShot(0, self._scroll_panel_to_top)
 
     def _on_cancel(self):
         """取消"""

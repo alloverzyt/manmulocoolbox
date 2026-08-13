@@ -105,7 +105,7 @@ def _save_first_run_done():
     try:
         import json
         with open(config_file, "w", encoding="utf-8") as f:
-            json.dump({"first_run": False, "version": "1.3.5"}, f, indent=2)
+            json.dump({"first_run": False, "version": "1.3.7"}, f, indent=2)
     except Exception:
         pass
 

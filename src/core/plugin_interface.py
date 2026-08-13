@@ -113,6 +113,17 @@ class BasePlugin(ABC):
         return True
 
     @property
+    def process_files_together(self) -> bool:
+        """
+        是否把全部输入文件一次性交给 execute
+
+        合并、批量比对等需要"同时看到所有文件"的工具（如 PDF合并、
+        重复文件查找）必须设为 True；否则 TaskWorker 会逐文件调用 execute，
+        导致这类工具永远只收到 1 个文件而无法工作。
+        """
+        return False
+
+    @property
     def supported_input_formats(self) -> List[str]:
         """支持的输入文件格式"""
         return []
@@ -147,6 +158,17 @@ class BasePlugin(ABC):
             ext = path.rsplit('.', 1)[-1].lower() if '.' in path else ''
             if self.supported_input_formats and ext not in self.supported_input_formats:
                 return f"不支持的文件格式: .{ext}"
+        return None
+
+    def check_environment(self) -> Optional[str]:
+        """
+        检查插件运行所需的运行时依赖（外部工具 / 可选库）。
+
+        返回 None 表示环境就绪；返回字符串表示缺失依赖的提示信息。
+        UI 在选中插件时调用：依赖缺失时应提示"先安装依赖"而不是允许拖入文件。
+
+        各插件按需覆写，默认视为环境就绪。
+        """
         return None
 
     @abstractmethod

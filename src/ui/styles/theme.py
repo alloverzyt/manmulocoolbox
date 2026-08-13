@@ -505,11 +505,21 @@ QLabel#hintLabel {{
     font-size: 13px;
 }}
 
+/* 依赖缺失提示条 - 警示色（warning），与普通提示条区分 */
+QLabel#envHintLabel {{
+    background-color: {_tint_color(card_bg, c['warning'], 0.12 if dark else 0.10)};
+    color: {c['warning']};
+    border: 1px solid {_rgba(c['warning'], 0.45)};
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: bold;
+}}
+
 /* ===== 进度条 ===== */
 QProgressBar {{
     background-color: {_rgba(c['border'], 0.2)};
-    border: none; border-radius: 8px; height: 10px;
-    text-align: center; color: {c['text_primary']};
+    border: none; border-radius: 8px; height: 16px;
 }}
 QProgressBar::chunk {{
     background-color: {c['accent']}; border-radius: 8px;

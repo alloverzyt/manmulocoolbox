@@ -24,6 +24,13 @@ for _root, _dirs, _files in os.walk('src/plugins'):
             _rel = os.path.relpath(os.path.join(_root, _f), 'src')
             _plugin_modules.append(_rel[:-3].replace(os.sep, '.'))
 
+# 动态收集 src/utils 模块：ffmpeg_helper / libreoffice_helper 在插件「函数内部延迟导入」，
+# PyInstaller 依赖分析不可靠，必须显式 hiddenimports + datas 双保险
+_utils_modules = []
+for _f in os.listdir('src/utils'):
+    if _f.endswith('.py') and not _f.startswith('_'):
+        _utils_modules.append('src.utils.' + _f[:-3])
+
 a = Analysis(
     ['run.py'],
     pathex=['src'],
@@ -34,6 +41,8 @@ a = Analysis(
         ('CHANGELOG.md', '.'),
         # 插件目录整体复制进解压目录：_load_all 需要 os.listdir 遍历真实目录
         ('src/plugins', 'src/plugins'),
+        # utils 目录整体复制：函数内延迟导入的 ffmpeg_helper 等在解压目录可直接 import
+        ('src/utils', 'src/utils'),
     ],
     hiddenimports=[
         'PySide6.QtCore',
@@ -57,7 +66,7 @@ a = Analysis(
         'openpyxl',
         'rembg',
         'onnxruntime',
-    ] + _plugin_modules,
+    ] + _plugin_modules + _utils_modules,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

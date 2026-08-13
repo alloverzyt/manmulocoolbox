@@ -40,6 +40,11 @@ class DuplicateFinderPlugin(BasePlugin):
         return ["txt"]
 
     @property
+    def process_files_together(self) -> bool:
+        # 重复比对需要一次性看到全部文件，逐文件调用无法发现重复
+        return True
+
+    @property
     def options_schema(self) -> Dict[str, Any]:
         return {
             "compare_by": {

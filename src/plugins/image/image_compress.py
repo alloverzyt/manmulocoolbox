@@ -58,7 +58,7 @@ class ImageCompressPlugin(BasePlugin):
             "output_format": {
                 "type": "select",
                 "label": "输出格式",
-                "default": "保持原格式",
+                "default": "original",
                 "options": [
                     {"label": "保持原格式", "value": "original"},
                     {"label": "JPG (通用)", "value": "jpg"},

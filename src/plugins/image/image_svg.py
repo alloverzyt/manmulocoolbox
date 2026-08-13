@@ -61,18 +61,19 @@ class ImageSvgPlugin(BasePlugin):
         }
 
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
-        try:
-            import cairosvg
-        except ImportError:
-            return PluginResult(
-                success=False,
-                error="cairosvg 未安装。请运行: pip install cairosvg"
-            )
-
         file_path = input_data.file_paths[0]
         options = input_data.options
         scale = options.get("scale", 2)
         bg = options.get("background", "transparent")
+
+        # 用 QtSvg 渲染（应用自带，无需额外安装 cairosvg/cairo DLL）
+        try:
+            from PySide6.QtWidgets import QApplication
+            from PySide6.QtCore import QRectF, Qt
+            from PySide6.QtGui import QColor, QImage, QPainter
+            from PySide6.QtSvg import QSvgRenderer
+        except ImportError:
+            return PluginResult(success=False, error="PySide6 未安装，无法渲染SVG")
 
         output_dir = get_output_dir(file_path, options.get("output_dir", ""))
         ensure_dir(output_dir)
@@ -81,18 +82,34 @@ class ImageSvgPlugin(BasePlugin):
         output_path = os.path.join(output_dir, f"{base_name}.png")
 
         try:
-            kwargs = {"output_width": None, "output_height": None}
-            if bg == "white":
-                kwargs["background_color"] = "white"
-            elif bg == "black":
-                kwargs["background_color"] = "black"
+            # 复用主窗口的 Qt 实例；无 GUI 环境（如命令行）时临时创建
+            app = QApplication.instance() or QApplication([])
 
-            cairosvg.svg2png(
-                url=file_path,
-                write_to=output_path,
-                scale=scale,
-                **kwargs
-            )
+            renderer = QSvgRenderer(file_path)
+            if not renderer.isValid():
+                return PluginResult(success=False, error="无法解析该SVG文件")
+
+            base_w = renderer.defaultSize().width() or 100
+            base_h = renderer.defaultSize().height() or 100
+            w = max(1, int(base_w * scale))
+            h = max(1, int(base_h * scale))
+
+            image = QImage(w, h, QImage.Format_ARGB32)
+            if bg == "white":
+                image.fill(QColor("white"))
+            elif bg == "black":
+                image.fill(QColor("black"))
+            else:
+                image.fill(Qt.transparent)
+
+            painter = QPainter(image)
+            try:
+                renderer.render(painter, QRectF(0, 0, w, h))
+            finally:
+                painter.end()
+
+            if not image.save(output_path) or not os.path.isfile(output_path):
+                return PluginResult(success=False, error="PNG 保存失败")
 
             return PluginResult(
                 success=True,

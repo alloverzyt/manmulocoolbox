@@ -4,6 +4,9 @@ from typing import Any, Dict, List
 from ...core.plugin_interface import BasePlugin, PluginInput, PluginResult
 from ...utils.file_utils import ensure_dir, get_filename, get_output_dir
 
+# rembg 首次导入会加载 onnxruntime（数秒），缓存检测结果避免每次点卡片卡 UI
+_rembg_env: str = ""  # "" = 未检测；None = 已就绪；其他 = 缺失原因
+
 
 class ImageRemoveBgPlugin(BasePlugin):
     @property
@@ -54,14 +57,16 @@ class ImageRemoveBgPlugin(BasePlugin):
         }
 
     def check_environment(self) -> str:
-        try:
-            import rembg  # noqa: F401
-            return None
-        except ImportError:
-            return "需要 rembg 库（AI去除背景）。请到「依赖管理」页安装。"
-        except Exception:
-            return "rembg 可用性检查失败。请到「依赖管理」页安装。"
-        return None
+        global _rembg_env
+        if _rembg_env == "":
+            try:
+                import rembg  # noqa: F401
+                _rembg_env = None
+            except ImportError:
+                _rembg_env = "需要 rembg 库（AI去除背景）。请到「依赖管理」页安装。"
+            except Exception:
+                _rembg_env = "rembg 可用性检查失败。请到「依赖管理」页安装。"
+        return _rembg_env
 
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         try:

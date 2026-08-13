@@ -72,6 +72,8 @@ a = Analysis(
         'markdown',
         'yaml',
         'pyzbar',
+        # PDF转Word：pdf2docx 及其依赖 numpy/opencv 明确打进包（用户选择牺牲体积换取稳定性）
+        'pdf2docx', 'numpy', 'cv2',
         'reportlab',
         'img2pdf',
     ] + _plugin_modules + _utils_modules,
@@ -95,10 +97,9 @@ a = Analysis(
         'scipy', 'sympy',
         # 机器学习
         'sklearn', 'tensorflow', 'torch', 'torchvision', 'xgboost', 'lightgbm',
-        # 可选依赖不打包（体积控制）：pdf2docx→numpy+opencv 会增大 EXE 160MB 以上。
-        # 这些在源码运行 / 依赖管理页可 pip 安装，打包版里对应工具会提示"未安装"。
-        'pdf2docx', 'numpy', 'pandas', 'openpyxl',
-        'cv2', 'opencv', 'opencv_python', 'opencv-python-headless',
+        # 保持体积：pandas/openpyxl 无插件使用；rembg/onnxruntime 需联网下模型，
+        # 与本地约束冲突，保留为可选（打包版里对应工具提示"未安装"）
+        'pandas', 'openpyxl',
         'rembg', 'onnxruntime', 'onnxruntime-gpu',
         # 数据库
         'pymysql', 'psycopg2', 'sqlalchemy',

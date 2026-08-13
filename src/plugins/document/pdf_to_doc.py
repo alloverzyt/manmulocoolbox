@@ -4,6 +4,9 @@ from typing import Any, Dict, List
 from ...core.plugin_interface import BasePlugin, PluginInput, PluginResult
 from ...utils.file_utils import ensure_dir, get_filename, get_output_dir
 
+# pdf2docx 首次导入需加载 numpy/opencv（2~4秒），缓存检测结果避免每次点卡片卡 UI
+_pdf2docx_env: str = ""  # "" = 未检测；None = 已就绪；其他 = 缺失原因
+
 
 class PdfToDocPlugin(BasePlugin):
     @property
@@ -68,12 +71,15 @@ class PdfToDocPlugin(BasePlugin):
         }
 
     def check_environment(self) -> str:
-        try:
-            import pdf2docx  # noqa: F401
-            return None
-        except ImportError:
-            return "需要 pdf2docx 库才能转换。请到「依赖管理」页安装。"
-        return None
+        # pdf2docx 首次导入需加载 numpy/opencv（2~4秒），缓存结果避免每次点卡片都卡 UI
+        global _pdf2docx_env
+        if _pdf2docx_env == "":
+            try:
+                import pdf2docx  # noqa: F401
+                _pdf2docx_env = None
+            except ImportError:
+                _pdf2docx_env = "需要 pdf2docx 库才能转换。请到「依赖管理」页安装。"
+        return _pdf2docx_env
 
     def execute(self, input_data: PluginInput, progress_callback=None) -> PluginResult:
         try:

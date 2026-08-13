@@ -505,14 +505,14 @@ QLabel#hintLabel {{
     font-size: 13px;
 }}
 
-/* 依赖缺失提示条 - 警示色（warning），与普通提示条区分 */
+/* 依赖缺失提示条 - 红色警示（error），醒目区分普通提示条 */
 QLabel#envHintLabel {{
-    background-color: {_tint_color(card_bg, c['warning'], 0.12 if dark else 0.10)};
-    color: {c['warning']};
-    border: 1px solid {_rgba(c['warning'], 0.45)};
+    background-color: {_tint_color(card_bg, c['error'], 0.16 if dark else 0.12)};
+    color: {c['error']};
+    border: 2px solid {_rgba(c['error'], 0.75)};
     border-radius: 10px;
-    padding: 10px 16px;
-    font-size: 13px;
+    padding: 12px 18px;
+    font-size: 14px;
     font-weight: bold;
 }}
 

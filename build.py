@@ -57,7 +57,7 @@ r = subprocess.run(
 )
 
 if r.returncode == 0:
-    exe = 'dist/满木工具箱.exe'
+    exe = 'dist/满木工具箱_v1.3.9.exe'
     if os.path.isfile(exe):
         size_mb = os.path.getsize(exe) / 1048576
         print()

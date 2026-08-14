@@ -166,7 +166,7 @@ r = subprocess.run(
 )
 
 if r.returncode == 0:
-    exe_path = 'dist/LocalToolbox.exe'
+    exe_path = 'dist/满木工具箱_v1.3.9.exe'
     if os.path.isfile(exe_path):
         size_mb = os.path.getsize(exe_path) / 1048576
         print()

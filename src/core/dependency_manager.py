@@ -221,6 +221,23 @@ def check_all_dependencies() -> Dict:
     return result
 
 
+def _clean_subprocess_env() -> Dict:
+    """
+    构造干净的子进程环境变量。
+
+    PyInstaller onefile 的 bootloader 会把 PYTHONHOME 指向 _MEI 解压目录，
+    子进程（`sys.executable -m pip` 再次运行 EXE）继承该变量后，
+    嵌入的 Python 会在父进程的临时目录里找 stdlib，导致
+    "Python path configuration" 错误（stdlib dir 为空），pip 安装必然失败。
+    这里剔除所有可能干扰解释器初始化的变量，让子进程自行初始化。
+    """
+    env = os.environ.copy()
+    for k in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP",
+              "PYTHONWARNINGS", "_MEIPASS2", "PYTHONNOUSERSITE"):
+        env.pop(k, None)
+    return env
+
+
 def install_python_package(pip_name: str) -> Tuple[bool, str]:
     """
     安装 Python 包
@@ -228,22 +245,25 @@ def install_python_package(pip_name: str) -> Tuple[bool, str]:
     优先使用 --user 选项安装到用户目录，避免权限问题
     """
     try:
+        clean_env = _clean_subprocess_env()
         # 先尝试用 --user 安装到用户目录（避免权限问题）
         cmd = [sys.executable, "-m", "pip", "install", "--user", pip_name]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300,
+                                env=clean_env, creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+
         if result.returncode == 0:
             return True, "安装成功"
-        
+
         # 如果 --user 失败，尝试普通安装
         if "WinError 5" in (result.stderr or "") or "PermissionError" in (result.stderr or ""):
             # 普通安装也可能失败，但先尝试
             cmd2 = [sys.executable, "-m", "pip", "install", pip_name]
-            result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=300)
+            result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=300,
+                                     env=clean_env, creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
             if result2.returncode == 0:
                 return True, "安装成功"
             return False, result2.stderr or result2.stdout
-        
+
         return False, result.stderr or result.stdout
     except subprocess.TimeoutExpired:
         return False, "安装超时，请检查网络连接"

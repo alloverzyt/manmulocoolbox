@@ -105,13 +105,20 @@ def _save_first_run_done():
     try:
         import json
         with open(config_file, "w", encoding="utf-8") as f:
-            json.dump({"first_run": False, "version": "1.3.8"}, f, indent=2)
+            json.dump({"first_run": False, "version": "1.3.9"}, f, indent=2)
     except Exception:
         pass
 
 
 def main():
     """主函数"""
+    # PyInstaller onefile 的 bootloader 会把 PYTHONHOME 指向 _MEI 解压目录，
+    # 若不清除，应用内调用 `sys.executable -m pip` 等子进程会继承该变量，
+    # 导致子进程的嵌入 Python 找不到 stdlib（"Python path configuration" 错误）。
+    # 主进程的解释器已由 bootloader 初始化，删除环境变量不影响本进程。
+    for _v in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "_MEIPASS2"):
+        os.environ.pop(_v, None)
+
     # 启用高 DPI 支持
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)

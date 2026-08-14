@@ -76,10 +76,12 @@ class ToolDownloader(QThread):
     finished_error = Signal(str)
     status_msg = Signal(str)
 
-    def __init__(self, tool_key: str, parent=None):
+    def __init__(self, tool_key: str, parent=None, selected_sources: Optional[list] = None):
         super().__init__(parent)
         self.tool_key = tool_key
         self._cancelled = False
+        # 用户选定的下载源（探测后选择），None 表示按配置顺序全部尝试
+        self._selected_sources = selected_sources or []
 
     def cancel(self):
         self._cancelled = True
@@ -100,7 +102,9 @@ class ToolDownloader(QThread):
 
         os.makedirs(target_dir, exist_ok=True)
 
-        for source in config["sources"]:
+        sources = self._selected_sources or config["sources"]
+
+        for source in sources:
             if self._cancelled:
                 self.finished_error.emit("用户取消")
                 return
@@ -286,6 +290,48 @@ class ToolDownloader(QThread):
                             if not os.path.exists(dst):
                                 shutil.move(src, dst)
                     break
+
+
+def probe_sources(tool_key: str, timeout: float = 6.0) -> list:
+    """
+    并发探测所有下载源的可达性，返回 [{name, url, ok, error}]。
+
+    用于下载前先检测哪些源可用，再让用户选择。每个源独立超时，
+    最多等待约 timeout 秒；服务器不支持 HEAD 时回退 GET+Range 只读少量字节。
+    """
+    import urllib.request
+    from concurrent.futures import ThreadPoolExecutor
+
+    if tool_key not in DOWNLOAD_SOURCES:
+        return []
+
+    def _probe_one(source: Dict) -> Dict:
+        url = source["url"]
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        # 1) HEAD 请求：镜像目录页 / 文件直链均可
+        try:
+            req = urllib.request.Request(url, headers=headers, method="HEAD")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return {"name": source["name"], "url": url, "ok": True, "error": ""}
+        except Exception as e1:
+            pass
+        # 2) GET + Range：部分服务器/镜像不支持 HEAD
+        try:
+            h2 = dict(headers)
+            h2["Range"] = "bytes=0-2047"
+            req2 = urllib.request.Request(url, headers=h2)
+            with urllib.request.urlopen(req2, timeout=timeout) as resp:
+                resp.read(256)
+                return {"name": source["name"], "url": url, "ok": True, "error": ""}
+        except Exception as e2:
+            return {"name": source["name"], "url": url, "ok": False, "error": str(e2)[:80]}
+
+    config = DOWNLOAD_SOURCES[tool_key]
+    sources = config["sources"]
+    if not sources:
+        return []
+    with ThreadPoolExecutor(max_workers=len(sources)) as ex:
+        return list(ex.map(_probe_one, sources))
 
 
 def get_download_info(tool_key: str) -> Optional[Dict]:

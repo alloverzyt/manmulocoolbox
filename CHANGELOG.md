@@ -1,5 +1,23 @@
 # 更新日志
 
+## v1.3.9（2026-08-13）
+
+### 修复打包版「安装依赖全部失败」（关键）
+- **根因一：pip 被排除出包**：LocalToolbox.spec 的 excludes 里曾列入 `pip`/`setuptools`/`wheel`，导致打包版里 `sys.executable -m pip install` 找不到 pip，任何 Python 依赖都装不上。已将三者移入 hiddenimports 确保入包
+- **根因二：子进程 Python 解释器启动失败**：PyInstaller onefile 的 bootloader 会把 `PYTHONHOME` 指向 `_MEI` 解压目录，应用内再次运行 EXE（pip 安装）时，子进程继承该变量后在自己的临时目录里找不到 stdlib，报「Python path configuration」错误直接闪退。修复：
+  - 应用启动时清理 `PYTHONHOME`/`PYTHONPATH`/`_MEIPASS2` 等环境变量（[src/main.py](src/main.py)）
+  - `install_python_package` 为 pip 子进程构造干净环境变量，并加 `CREATE_NO_WINDOW` 避免安装时弹黑窗（[dependency_manager.py](src/core/dependency_manager.py)）
+  - 打包脚本同样在构建前清理这些变量，防止污染产物
+
+### 外部工具下载：先检测源，再让用户选
+- 点击「下载」后不再盲目按配置顺序挨个试：先并发探测所有下载源的可达性（HEAD 请求，不支持 HEAD 的源自动回退 GET+Range），列出「可用/不可用」让用户自主选择下载哪个源
+- 可用源显示绿色、不可用源灰显置灰（含失败原因），默认选中第一个可用源；全部不可用时给出网络提示
+- 下载器支持只使用用户选定的源，避免浪费流量反复尝试不可达源
+
+### 打包产物命名
+- EXE 文件名规则改为「满木工具箱_版本号.exe」：本次产物为 `满木工具箱_v1.3.9.exe`，文件管理器/下载目录中可直观区分版本，避免与旧版混淆
+- 安装脚本的 EXE 文件名宏已改为跟随版本号自动拼接，后续升级只需改 `MyAppVersion`
+
 ## v1.3.8（2026-08-13）
 
 ### 打包与品牌优化

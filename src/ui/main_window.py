@@ -10,6 +10,7 @@ import sys
 import os
 import json
 import webbrowser
+from typing import Optional
 
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QFont, QPixmap, QPainter, QColor, QBrush, QPen, QPainterPath, QIcon
@@ -17,7 +18,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QStackedWidget, QPushButton,
     QStatusBar, QMessageBox, QSizePolicy, QFrame, QProgressBar,
-    QScrollArea, QTabWidget
+    QScrollArea, QTabWidget, QDialog
 )
 
 from ..core.plugin_manager import PluginManager
@@ -71,6 +72,98 @@ class InstallWorker(QThread):
                     self.finished_ok.emit(False, "部分依赖安装失败，请手动安装")
         except Exception as e:
             self.error.emit(str(e))
+
+
+class SourceProbeWorker(QThread):
+    """外部工具下载源可达性探测线程（不阻塞 UI）"""
+    finished = Signal(list)
+
+    def __init__(self, tool_key: str, parent=None):
+        super().__init__(parent)
+        self._tool_key = tool_key
+
+    def run(self):
+        from ..utils.tool_downloader import probe_sources
+        try:
+            results = probe_sources(self._tool_key)
+        except Exception as e:
+            results = [{"name": "未知", "url": "", "ok": False, "error": str(e)[:100]}]
+        self.finished.emit(results)
+
+
+class SourceSelectDialog(QDialog):
+    """下载源选择对话框：展示各源可达性检测结果，让用户选择用哪个源下载"""
+
+    def __init__(self, tool_name: str, results: list, parent=None):
+        super().__init__(parent)
+        self._selected = None
+        self.setWindowTitle(f"选择 {tool_name} 下载源")
+        self.setMinimumSize(520, 320)
+        self.resize(540, 360)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(12)
+
+        tip = QLabel("已检测各下载源的可达性，请选择一个源开始下载：")
+        tip.setWordWrap(True)
+        tip.setStyleSheet("font-size: 13px; background: transparent;")
+        layout.addWidget(tip)
+
+        self._list = QListWidget()
+        layout.addWidget(self._list, 1)
+
+        has_ok = False
+        for r in results:
+            item = QListWidgetItem()
+            if r.get("ok"):
+                has_ok = True
+                item.setText(f"[可用] {r['name']}")
+                item.setForeground(QColor("#4CAF50"))
+            else:
+                item.setText(f"[不可用] {r['name']}（{r.get('error', '无法连接')}）")
+                item.setForeground(QColor("#999999"))
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            item.setData(Qt.UserRole, r)
+            self._list.addItem(item)
+
+        if not has_ok:
+            warn = QLabel("所有下载源当前都不可用，请检查网络后重试。")
+            warn.setStyleSheet("color: #EF9A9A; background: transparent;")
+            layout.addWidget(warn)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        self._ok_btn = QPushButton("开始下载")
+        self._ok_btn.setObjectName("primaryBtn")
+        self._ok_btn.setMinimumHeight(36)
+        self._ok_btn.setMinimumWidth(100)
+        self._ok_btn.setEnabled(has_ok)
+        self._ok_btn.clicked.connect(self._on_ok)
+        cancel_btn = QPushButton("取消")
+        cancel_btn.setMinimumHeight(36)
+        cancel_btn.setMinimumWidth(80)
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(self._ok_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+        # 默认选中第一个可用的源
+        for i in range(self._list.count()):
+            if self._list.item(i).flags() & Qt.ItemIsEnabled:
+                self._list.setCurrentRow(i)
+                break
+
+    def _on_ok(self):
+        item = self._list.currentItem()
+        if item and (item.flags() & Qt.ItemIsEnabled):
+            self._selected = item.data(Qt.UserRole)
+            self.accept()
+        else:
+            QMessageBox.warning(self, "提示", "请先选择一个可用的下载源")
+
+    def selected_source(self) -> Optional[dict]:
+        return self._selected
 
 
 class DependencyPage(QWidget):
@@ -422,15 +515,41 @@ class DependencyPage(QWidget):
         QMessageBox.critical(self, "安装失败", err)
 
     def _download_tool(self, tool_key: str):
-        """下载外部工具"""
+        """下载外部工具：先并发探测各下载源可达性，再让用户选择用哪个源下载"""
         tool_info = next((t for t in EXTERNAL_TOOLS if t["key"] == tool_key), None)
         if not tool_info:
             return
         self._progress.setVisible(True)
         self._progress.setValue(0)
-        self._status_label.setText(f"正在下载 {tool_info['name']}...")
+        self._status_label.setText(f"正在检测 {tool_info['name']} 的下载源可用性...")
 
-        self._downloader = ToolDownloader(tool_key)
+        self._probe_worker = SourceProbeWorker(tool_key)
+        self._probe_worker.finished.connect(lambda results: self._on_sources_probed(tool_key, results))
+        self._probe_worker.start()
+
+    def _on_sources_probed(self, tool_key: str, results: list):
+        """探测完成：弹出源选择对话框，用户选定后开始下载"""
+        self._progress.setVisible(False)
+        tool_name = next((t["name"] for t in EXTERNAL_TOOLS if t["key"] == tool_key), tool_key)
+
+        if not results:
+            QMessageBox.critical(self, "下载失败", f"未找到 {tool_name} 的下载源配置")
+            return
+
+        dlg = SourceSelectDialog(tool_name, results, parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            self._status_label.setText("已取消下载")
+            return
+
+        selected = dlg.selected_source()
+        if not selected:
+            return
+
+        self._progress.setVisible(True)
+        self._progress.setValue(0)
+        self._status_label.setText(f"正在从 {selected['name']} 下载...")
+
+        self._downloader = ToolDownloader(tool_key, selected_sources=[selected])
         self._downloader.progress.connect(self._on_download_progress)
         self._downloader.finished_ok.connect(self._on_download_ok)
         self._downloader.finished_error.connect(self._on_download_error)

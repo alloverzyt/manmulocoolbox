@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 # LocalToolbox PyInstaller 打包配置
 # 模式: onefile (单文件 exe)
-# 目标: 生成单个 LocalToolbox.exe，双击即用
+# 目标: 生成单个「满木工具箱_版本号.exe」，双击即用
 #
 # 防误报优化:
 # 1. onefile 单文件模式（用户体验最佳）
@@ -76,6 +76,9 @@ a = Analysis(
         'pdf2docx', 'numpy', 'cv2',
         'reportlab',
         'img2pdf',
+        # pip 安装依赖：依赖管理页用 `sys.executable -m pip install` 安装可选包，
+        # 必须把 pip/setuptools/wheel 打进包（曾放入 excludes 导致打包版 pip 不可用）
+        'pip', 'setuptools', 'wheel',
     ] + _plugin_modules + _utils_modules,
     hookspath=[],
     hooksconfig={},
@@ -116,8 +119,6 @@ a = Analysis(
         'audioop', 'wave', 'aifc', 'ossaudiodev', 'winsound',
         # 系统工具
         'profile', 'cProfile', 'pstats',
-        'distutils', 'setuptools', 'pip', 'wheel',
-        'pkg_resources', 'easy_install',
         # 可选 GUI 后端
         'PIL._tkinter_finder',
         # 重复项
@@ -153,7 +154,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='满木工具箱',
+    name='满木工具箱_v1.3.9',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

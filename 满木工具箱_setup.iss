@@ -2,8 +2,9 @@
 ; 编译: ISCC.exe 满木工具箱_setup.iss
 
 #define MyAppName "满木工具箱"
-#define MyAppVersion "1.3.8"
-#define MyAppExeName "满木工具箱.exe"
+#define MyAppVersion "1.3.9"
+; EXE 文件名 = 中文名 + 版本号（跟随 MyAppVersion 自动更新）
+#define MyAppExeName "满木工具箱_v{#MyAppVersion}.exe"
 #define MyAppPublisher "满木工具箱"
 #define MyAppURL "https://www.cnblogs.com/alloverzyt"
 

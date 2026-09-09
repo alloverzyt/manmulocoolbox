@@ -5,6 +5,7 @@
 - 当前版本：**v1.3.9**
 - 技术栈：Python 3.11+ · PySide6 · PyMuPDF · PyInstaller (onefile)
 - 仓库：https://github.com/alloverzyt/manmulocoolbox
+- 👉 普通用户请看 **[USER_GUIDE.md](USER_GUIDE.md)**（下载安装与使用手册），本 README 面向开发者
 
 ---
 
